@@ -23,60 +23,84 @@ func SizeTOf(data interface{}) int {
 	return num + npm.exNum
 }
 
-func (s *sStruct) sizeof(v reflect.Value) int {
+func (s *sStruct) sizeofSlice(v reflect.Value) (sum int) {
+	defer func() {
+		if err := recover(); err != nil {
+			fmt.Printf("panic sizeofSlice %v\n", err)
+		}
+	}()
+
+	for i, n := 0, v.Len(); i < n; i++ {
+		num := s.sizeof(v.Index(i))
+		if num < 0 {
+			return -1
+		}
+		sum += num
+	}
+	s.exNum += int(v.Type().Size())
+	return sum
+}
+
+func (s *sStruct) sizeofArray(v reflect.Value) (sum int) {
+	defer func() {
+		if err := recover(); err != nil {
+			fmt.Printf("panic sizeofArray %v\n", err)
+		}
+	}()
+	for i, n := 0, v.Len(); i < n; i++ {
+		num := s.sizeof(v.Index(i))
+		if num < 0 {
+			return -1
+		}
+		sum += num
+	}
+	return sum
+}
+
+func (s *sStruct) sizeofMap(v reflect.Value) (sum int) {
+	defer func() {
+		if err := recover(); err != nil {
+			fmt.Printf("panic sizeofMap %v\n", err)
+		}
+	}()
+
+	keys := v.MapKeys()
+	for i := 0; i < len(keys); i++ {
+		mapkey := keys[i]
+		num := s.sizeof(mapkey)
+		if num < 0 {
+			return -1
+		}
+		sum += num
+		num = s.sizeof(v.MapIndex(mapkey))
+		if num < 0 {
+			return -1
+		}
+		sum += num
+	}
+	s.exNum += int(v.Type().Size())
+	return sum
+}
+func (s *sStruct) sizeof(v reflect.Value) (sum int) {
+	defer func() {
+		if err := recover(); err != nil {
+			fmt.Printf("panic sizeof %v\n", err)
+		}
+	}()
+
 	switch v.Kind() {
 	case reflect.Map:
-		sum := 0
-		keys := v.MapKeys()
-		for i := 0; i < len(keys); i++ {
-			mapkey := keys[i]
-			num := s.sizeof(mapkey)
-			if num < 0 {
-				return -1
-			}
-			sum += num
-			num = s.sizeof(v.MapIndex(mapkey))
-			if num < 0 {
-				return -1
-			}
-			sum += num
-		}
-		s.exNum += int(v.Type().Size())
-		return sum
-	case reflect.Slice:
-		sum := 0
-		for i, n := 0, v.Len(); i < n; i++ {
-			num := s.sizeof(v.Index(i))
-			if num < 0 {
-				return -1
-			}
-			sum += num
-		}
-		s.exNum += int(v.Type().Size())
-		return sum
+		return s.sizeofMap(v)
 
+	case reflect.Slice:
+		return s.sizeofSlice(v)
 	case reflect.Array:
-		sum := 0
-		for i, n := 0, v.Len(); i < n; i++ {
-			num := s.sizeof(v.Index(i))
-			if num < 0 {
-				return -1
-			}
-			sum += num
-		}
-		return sum
+		return s.sizeofArray(v)
 
 	case reflect.String:
-		sum := 0
-		for i, n := 0, v.Len(); i < n; i++ {
-			num := s.sizeof(v.Index(i))
-			if num < 0 {
-				return -1
-			}
-			sum += num
-		}
+		vs := v.Interface().(string)
 		s.exNum += int(v.Type().Size())
-		return sum
+		return len(vs)
 
 	case reflect.Ptr:
 		s.exNum += int(v.Type().Size())
@@ -105,7 +129,6 @@ func (s *sStruct) sizeof(v reflect.Value) int {
 		return int(v.Type().Size())
 
 	case reflect.Struct:
-		sum := 0
 		for i, n := 0, v.NumField(); i < n; i++ {
 			if v.Type().Field(i).Tag.Get("ss") == "-" {
 				continue
