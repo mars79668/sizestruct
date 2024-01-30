@@ -57,6 +57,23 @@ func (s *sStruct) sizeofArray(v reflect.Value) (sum int) {
 	return sum
 }
 
+func (s *sStruct) sizeofString(v reflect.Value) (sum int) {
+	defer func() {
+		if err := recover(); err != nil {
+			fmt.Printf("panic sizeofString %v\n", err)
+		}
+	}()
+	for i, n := 0, v.Len(); i < n; i++ {
+		num := s.sizeof(v.Index(i))
+		if num < 0 {
+			return -1
+		}
+		sum += num
+	}
+	s.exNum += int(v.Type().Size())
+	return sum
+}
+
 func (s *sStruct) sizeofMap(v reflect.Value) (sum int) {
 	defer func() {
 		if err := recover(); err != nil {
@@ -84,7 +101,7 @@ func (s *sStruct) sizeofMap(v reflect.Value) (sum int) {
 func (s *sStruct) sizeof(v reflect.Value) (sum int) {
 	defer func() {
 		if err := recover(); err != nil {
-			fmt.Printf("panic sizeof %v\n", err)
+			fmt.Printf("panic sizeof %v\n%s\n", err)
 		}
 	}()
 
@@ -98,9 +115,9 @@ func (s *sStruct) sizeof(v reflect.Value) (sum int) {
 		return s.sizeofArray(v)
 
 	case reflect.String:
-		vs := v.Interface().(string)
-		s.exNum += int(v.Type().Size())
-		return len(vs)
+		// cannot return value obtained from unexported field or method
+		// vs := v.Interface().(string)
+		return s.sizeofString(v)
 
 	case reflect.Ptr:
 		s.exNum += int(v.Type().Size())
